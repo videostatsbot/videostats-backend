@@ -61,20 +61,42 @@ public class VideoRepository {
     }
 
     public List<StoredVideo> findAll() {
+        return findAllByPlatform(null);
+    }
+
+    public List<StoredVideo> findAllByPlatform(VideoPlatform platform) {
         String sql = """
                 SELECT id, platform, video_id, url, title, status, last_view_count
                 FROM videos
-                ORDER BY created_at DESC, id DESC
+                WHERE (? IS NULL OR platform = ?)
+                ORDER BY
+                    CASE platform
+                        WHEN 'YOUTUBE' THEN 0
+                        WHEN 'RUTUBE' THEN 1
+                        ELSE 2
+                    END,
+                    COALESCE(last_view_count, -1) DESC,
+                    created_at DESC,
+                    id DESC
                 """;
 
         List<StoredVideo> videos = new ArrayList<>();
         try (Connection connection = dataSource.getConnection();
-             PreparedStatement statement = connection.prepareStatement(sql);
-             ResultSet resultSet = statement.executeQuery()) {
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+            if (platform == null) {
+                statement.setNull(1, java.sql.Types.VARCHAR);
+                statement.setNull(2, java.sql.Types.VARCHAR);
+            } else {
+                statement.setString(1, platform.name());
+                statement.setString(2, platform.name());
+            }
+
+            try (ResultSet resultSet = statement.executeQuery()) {
             while (resultSet.next()) {
                 videos.add(mapStoredVideo(resultSet));
             }
             return videos;
+            }
         } catch (SQLException e) {
             throw new IllegalStateException("Failed to fetch videos", e);
         }
@@ -171,8 +193,13 @@ public class VideoRepository {
 
     public VideoSummary getSummary() {
         String sql = """
-                SELECT COUNT(*) AS total_videos,
-                       COALESCE(SUM(last_view_count), 0) AS total_views
+                SELECT
+                    COUNT(*) AS total_videos,
+                    COALESCE(SUM(last_view_count), 0) AS total_views,
+                    COUNT(*) FILTER (WHERE platform = 'YOUTUBE') AS youtube_videos,
+                    COALESCE(SUM(last_view_count) FILTER (WHERE platform = 'YOUTUBE'), 0) AS youtube_views,
+                    COUNT(*) FILTER (WHERE platform = 'RUTUBE') AS rutube_videos,
+                    COALESCE(SUM(last_view_count) FILTER (WHERE platform = 'RUTUBE'), 0) AS rutube_views
                 FROM videos
                 """;
 
@@ -182,10 +209,14 @@ public class VideoRepository {
             if (resultSet.next()) {
                 return new VideoSummary(
                         resultSet.getInt("total_videos"),
-                        resultSet.getLong("total_views")
+                        resultSet.getLong("total_views"),
+                        resultSet.getInt("youtube_videos"),
+                        resultSet.getLong("youtube_views"),
+                        resultSet.getInt("rutube_videos"),
+                        resultSet.getLong("rutube_views")
                 );
             }
-            return new VideoSummary(0, 0);
+            return new VideoSummary(0, 0, 0, 0, 0, 0);
         } catch (SQLException e) {
             throw new IllegalStateException("Failed to fetch video summary", e);
         }
