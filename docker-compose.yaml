@@ -1,0 +1,46 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: video-stats-backend
+    restart: unless-stopped
+    environment:
+      - DATABASE_URL=jdbc:postgresql://db:5432/tg_bot_video_stats
+      - DATABASE_USER=postgres
+      - DATABASE_PASSWORD=1234
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - YOUTUBE_API_KEY=${YOUTUBE_API_KEY}
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - network
+
+  db:
+    image: postgres:latest
+    container_name: video-stats-db
+    restart: unless-stopped
+    environment:
+      - POSTGRES_DB=tg_bot_video_stats
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=1234
+    ports:
+      - "5432:5432"
+    volumes:
+      - db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d tg_bot_video_stats"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - network
+
+volumes:
+  db:
+
+networks:
+  network:
+    driver: bridge
