@@ -38,6 +38,11 @@ public class TelegramBotController {
 
     private int handleUpdates(List<Update> updates) {
         for (Update update : updates) {
+
+            if (!AuthManager.isAllowed(extractUserId(update))) {
+                continue;
+            }
+
             try {
                 if (update.callbackQuery() != null) {
                     handleCallback(update.callbackQuery());
@@ -291,6 +296,16 @@ public class TelegramBotController {
 
     private boolean looksLikeUrl(String text) {
         return text.startsWith("http://") || text.startsWith("https://");
+    }
+
+    private long extractUserId(Update update) {
+        if (update.message() != null && update.message().from() != null) {
+            return update.message().from().id();
+        }
+        if (update.callbackQuery() != null && update.callbackQuery().from() != null) {
+            return update.callbackQuery().from().id();
+        }
+        return -1;
     }
 
     private SendMessage createMessage(long chatId, String text) {
