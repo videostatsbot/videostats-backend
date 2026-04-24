@@ -18,7 +18,7 @@ services:
       - network
 
   db:
-    image: postgres:latest
+    image: postgres:16-alpine
     container_name: video-stats-db
     restart: unless-stopped
     environment:
