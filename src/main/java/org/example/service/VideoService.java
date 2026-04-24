@@ -13,28 +13,42 @@ import java.util.List;
 
 public class VideoService {
     private final YoutubeUrlParser youtubeUrlParser;
+    private final RutubeUrlParser rutubeUrlParser;
     private final VideoRepository videoRepository;
     private final YoutubeClient youtubeClient;
+    private final RutubeClient rutubeClient;
 
-    public VideoService(YoutubeUrlParser youtubeUrlParser, VideoRepository videoRepository, YoutubeClient youtubeClient) {
+    public VideoService(
+            YoutubeUrlParser youtubeUrlParser,
+            RutubeUrlParser rutubeUrlParser,
+            VideoRepository videoRepository,
+            YoutubeClient youtubeClient,
+            RutubeClient rutubeClient
+    ) {
         this.youtubeUrlParser = youtubeUrlParser;
+        this.rutubeUrlParser = rutubeUrlParser;
         this.videoRepository = videoRepository;
         this.youtubeClient = youtubeClient;
+        this.rutubeClient = rutubeClient;
     }
 
-    public AddVideoResult addYoutubeVideo(String rawUrl) {
+    public AddVideoResult addVideo(String rawUrl) {
         if (rawUrl == null || rawUrl.isBlank()) {
-            return AddVideoResult.invalid("Нужно указать ссылку на YouTube-видео.");
+            return AddVideoResult.invalid("Нужно указать ссылку на видео YouTube или Rutube.");
         }
 
-        return youtubeUrlParser.extractVideoId(rawUrl)
-                .map(videoId -> saveVideo(rawUrl.trim(), videoId))
-                .orElseGet(() -> AddVideoResult.invalid("Пока что я принимаю только корректные ссылки на YouTube-видео."));
+        String normalizedUrl = rawUrl.trim();
+
+        return youtubeUrlParser.extractVideoId(normalizedUrl)
+                .map(videoId -> saveVideo(VideoPlatform.YOUTUBE, normalizedUrl, videoId))
+                .or(() -> rutubeUrlParser.extractVideoId(normalizedUrl)
+                        .map(videoId -> saveVideo(VideoPlatform.RUTUBE, normalizedUrl, videoId)))
+                .orElseGet(() -> AddVideoResult.invalid("Пока что я принимаю только корректные ссылки на YouTube и Rutube."));
     }
 
-    private AddVideoResult saveVideo(String rawUrl, String videoId) {
+    private AddVideoResult saveVideo(VideoPlatform platform, String rawUrl, String videoId) {
         var saveResult = videoRepository.save(new NewVideo(
-                VideoPlatform.YOUTUBE,
+                platform,
                 videoId,
                 rawUrl,
                 VideoStatus.ACTIVE,
@@ -55,6 +69,14 @@ public class VideoService {
 
     public List<StoredVideo> getAllVideos() {
         return videoRepository.findAll();
+    }
+
+    public List<StoredVideo> getYoutubeVideos() {
+        return videoRepository.findAllByPlatform(VideoPlatform.YOUTUBE);
+    }
+
+    public List<StoredVideo> getRutubeVideos() {
+        return videoRepository.findAllByPlatform(VideoPlatform.RUTUBE);
     }
 
     public VideoSummary getSummary() {
@@ -119,13 +141,20 @@ public class VideoService {
     public RefreshSingleResult refreshVideoById(long id) {
         StoredVideo video = videoRepository.findById(id);
         if (video == null) {
-            return new RefreshSingleResult(false, "[YT] Видео не найдено", "видео не найдено");
+            return new RefreshSingleResult(false, "[??] Видео не найдено", "видео не найдено");
         }
 
         return refreshVideo(video);
     }
 
     private RefreshSingleResult refreshVideo(StoredVideo video) {
+        return switch (video.platform()) {
+            case YOUTUBE -> refreshYoutubeVideo(video);
+            case RUTUBE -> refreshRutubeVideo(video);
+        };
+    }
+
+    private RefreshSingleResult refreshYoutubeVideo(StoredVideo video) {
         YoutubeClient.FetchYoutubeResult result = youtubeClient.fetchVideoDetails(video.videoId());
         if (result.isSuccess()) {
             YoutubeVideoDetails details = result.details().orElseThrow();
@@ -134,6 +163,21 @@ public class VideoService {
         }
 
         VideoStatus status = result.failureReason() == YoutubeClient.FailureReason.NOT_FOUND
+                ? VideoStatus.INVALID_LINK
+                : VideoStatus.API_ERROR;
+        videoRepository.updateVideoMetadataAfterFailure(video.id(), status, result.errorMessage());
+        return new RefreshSingleResult(false, buildDisplayLabel(video), result.errorMessage());
+    }
+
+    private RefreshSingleResult refreshRutubeVideo(StoredVideo video) {
+        RutubeClient.FetchRutubeResult result = rutubeClient.fetchVideoDetails(video.videoId());
+        if (result.isSuccess()) {
+            RutubeVideoDetails details = result.details().orElseThrow();
+            videoRepository.updateVideoMetadataAfterSuccess(video.id(), details.title(), details.viewCount());
+            return new RefreshSingleResult(true, buildDisplayLabel(video.platform(), details.title()), "статистика обновлена");
+        }
+
+        VideoStatus status = result.failureReason() == RutubeClient.FailureReason.NOT_FOUND
                 ? VideoStatus.INVALID_LINK
                 : VideoStatus.API_ERROR;
         videoRepository.updateVideoMetadataAfterFailure(video.id(), status, result.errorMessage());
@@ -217,6 +261,7 @@ public class VideoService {
     private String buildDisplayLabel(VideoPlatform platform, String title) {
         String platformCode = switch (platform) {
             case YOUTUBE -> "YT";
+            case RUTUBE -> "RT";
         };
 
         String baseTitle = title == null || title.isBlank()
