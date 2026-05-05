@@ -33,6 +33,10 @@ public class VideoService {
     }
 
     public AddVideoResult addVideo(String rawUrl) {
+        return addVideo(rawUrl, null);
+    }
+
+    public AddVideoResult addVideo(String rawUrl, Long addedByUserId) {
         if (rawUrl == null || rawUrl.isBlank()) {
             return AddVideoResult.invalid("Нужно указать ссылку на видео YouTube или Rutube.");
         }
@@ -40,19 +44,19 @@ public class VideoService {
         String normalizedUrl = rawUrl.trim();
 
         return youtubeUrlParser.extractVideoId(normalizedUrl)
-                .map(videoId -> saveVideo(VideoPlatform.YOUTUBE, normalizedUrl, videoId))
+                .map(videoId -> saveVideo(VideoPlatform.YOUTUBE, normalizedUrl, videoId, addedByUserId))
                 .or(() -> rutubeUrlParser.extractVideoId(normalizedUrl)
-                        .map(videoId -> saveVideo(VideoPlatform.RUTUBE, normalizedUrl, videoId)))
+                        .map(videoId -> saveVideo(VideoPlatform.RUTUBE, normalizedUrl, videoId, addedByUserId)))
                 .orElseGet(() -> AddVideoResult.invalid("Пока что я принимаю только корректные ссылки на YouTube и Rutube."));
     }
 
-    private AddVideoResult saveVideo(VideoPlatform platform, String rawUrl, String videoId) {
+    private AddVideoResult saveVideo(VideoPlatform platform, String rawUrl, String videoId, Long addedByUserId) {
         var saveResult = videoRepository.save(new NewVideo(
                 platform,
                 videoId,
                 rawUrl,
                 VideoStatus.ACTIVE,
-                null
+                addedByUserId
         ));
 
         if (saveResult.alreadyExists()) {

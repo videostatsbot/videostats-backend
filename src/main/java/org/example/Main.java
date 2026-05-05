@@ -31,6 +31,6 @@ public class Main {
         );
 
         TelegramBot bot = new TelegramBot(config.telegramBotToken());
-        new TelegramBotController(bot, videoService).start();
+        new TelegramBotController(bot, videoService, config.allowedTelegramUserIds()).start();
     }
 }
