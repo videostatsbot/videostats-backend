@@ -74,7 +74,6 @@
 
 Проект использует **PostgreSQL** со следующими таблицами:
 
-- **users** — пользователи бота (Telegram ID, роль)
 - **videos** — загруженные видео (платформа, URL, статистика)
 - **video_stats_history** — история изменений статистики просмотров
 
@@ -165,7 +164,7 @@ cp .env.example .env
 # База данных
 DATABASE_URL=jdbc:postgresql://db:5432/tg_bot_video_stats
 DATABASE_USER=postgres
-DATABASE_PASSWORD=assword
+DATABASE_PASSWORD=password
 
 # Telegram
 TELEGRAM_BOT_TOKEN=your_token
