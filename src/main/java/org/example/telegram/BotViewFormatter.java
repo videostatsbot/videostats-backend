@@ -28,7 +28,7 @@ public class BotViewFormatter {
 
     public String startMessage() {
         return """
-                <b>👋 Бот запущен и готов к работе.</b>
+                <b><tg-emoji emoji-id="5409085785427163977">👋</tg-emoji><tg-emoji emoji-id="5409219084032163788">😃</tg-emoji> Бот запущен и готов к работе.</b>
 
                 Что можно делать:
                 • просто отправить ссылку на YouTube или Rutube
@@ -50,7 +50,7 @@ public class BotViewFormatter {
 
     public String helpMessage() {
         return """
-                <b>ℹ️ Справка</b>
+                <b><tg-emoji emoji-id="5271619747891388291">ℹ️</tg-emoji>️ Справка</b>
 
                 Выбери нужный раздел ниже.
                 """;
@@ -357,15 +357,15 @@ public class BotViewFormatter {
 
     private String platformLabel(VideoPlatform platform) {
         return switch (platform) {
-            case YOUTUBE -> "▶️ YouTube";
-            case RUTUBE -> "📺 Rutube";
+            case YOUTUBE -> "<tg-emoji emoji-id=\"5278611117130653414\">\u25B6\uFE0F️</tg-emoji>️ YouTube";
+            case RUTUBE -> "<tg-emoji emoji-id=\"5298747646096187189\">\uD83D\uDCFA</tg-emoji>";
         };
     }
 
     private String platformIcon(VideoPlatform platform) {
         return switch (platform) {
-            case YOUTUBE -> "▶️";
-            case RUTUBE -> "📺";
+            case YOUTUBE -> "<tg-emoji emoji-id=\"5278611117130653414\">\u25B6\uFE0F️</tg-emoji>";
+            case RUTUBE -> "<tg-emoji emoji-id=\"5298747646096187189\">\uD83D\uDCFA</tg-emoji>";
         };
     }
 

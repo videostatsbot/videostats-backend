@@ -6,11 +6,12 @@ services:
     container_name: video-stats-backend
     restart: unless-stopped
     environment:
-      - DATABASE_URL=jdbc:postgresql://db:5432/tg_bot_video_stats
-      - DATABASE_USER=postgres
-      - DATABASE_PASSWORD=1234
+      - DATABASE_URL=${DATABASE_URL}
+      - DATABASE_USER=${DATABASE_USER}
+      - DATABASE_PASSWORD=${DATABASE_PASSWORD}
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
       - YOUTUBE_API_KEY=${YOUTUBE_API_KEY}
+      - TELEGRAM_ALLOWED_USER_IDS=${TELEGRAM_ALLOWED_USER_IDS}
     depends_on:
       db:
         condition: service_healthy
@@ -26,7 +27,7 @@ services:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=1234
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
       - db:/var/lib/postgresql/data
     healthcheck:
