@@ -15,17 +15,20 @@ import org.example.model.StoredVideo;
 import org.example.service.VideoService;
 
 import java.util.List;
+import java.util.Set;
 
 public class TelegramBotController {
     private final TelegramBot bot;
     private final VideoService videoService;
+    private final Set<Long> allowedTelegramUserIds;
     private final BotViewFormatter formatter;
     private final BotKeyboardFactory keyboardFactory;
     private final SearchSessionStore searchSessionStore;
 
-    public TelegramBotController(TelegramBot bot, VideoService videoService) {
+    public TelegramBotController(TelegramBot bot, VideoService videoService, Set<Long> allowedTelegramUserIds) {
         this.bot = bot;
         this.videoService = videoService;
+        this.allowedTelegramUserIds = allowedTelegramUserIds;
         this.formatter = new BotViewFormatter();
         this.keyboardFactory = new BotKeyboardFactory(formatter);
         this.searchSessionStore = new SearchSessionStore();
@@ -50,6 +53,11 @@ public class TelegramBotController {
 
                 String text = update.message().text().trim();
                 long chatId = update.message().chat().id();
+                Long telegramUserId = update.message().from() == null ? null : update.message().from().id();
+                if (!isAllowed(telegramUserId)) {
+                    safeExecute(createMessage(chatId, "Access denied.").replyMarkup(keyboardFactory.mainKeyboard()), "Failed to send access denied message.");
+                    continue;
+                }
 
                 if ("/start".equals(text)) {
                     safeExecute(createMessage(chatId, formatter.startMessage()).replyMarkup(keyboardFactory.mainKeyboard()), "Не удалось отправить стартовое сообщение.");
@@ -72,7 +80,7 @@ public class TelegramBotController {
                 } else if (text.startsWith("/search")) {
                     handleSearchCommand(chatId, extractArgument(text));
                 } else if (looksLikeUrl(text)) {
-                    var result = videoService.addVideo(text);
+                    var result = videoService.addVideo(text, telegramUserId);
                     safeExecute(createMessage(chatId, formatter.formatAddResult(result)).replyMarkup(keyboardFactory.mainKeyboard()), "Не удалось отправить результат добавления видео.");
                 } else {
                     safeExecute(createMessage(chatId, formatter.unknownMessage()).replyMarkup(keyboardFactory.mainKeyboard()), "Не удалось отправить сообщение о неизвестной команде.");
@@ -100,6 +108,11 @@ public class TelegramBotController {
         String data = callbackQuery.data();
         long chatId = callbackQuery.message().chat().id();
         int messageId = callbackQuery.message().messageId();
+        Long telegramUserId = callbackQuery.from() == null ? null : callbackQuery.from().id();
+        if (!isAllowed(telegramUserId)) {
+            safeAnswerCallback(callbackQuery.id(), "Access denied.");
+            return;
+        }
 
         if ("show_list".equals(data)) {
             editAllList(chatId, messageId, 0);
@@ -291,6 +304,11 @@ public class TelegramBotController {
 
     private boolean looksLikeUrl(String text) {
         return text.startsWith("http://") || text.startsWith("https://");
+    }
+
+    private boolean isAllowed(Long telegramUserId) {
+        return allowedTelegramUserIds.isEmpty()
+                || telegramUserId != null && allowedTelegramUserIds.contains(telegramUserId);
     }
 
     private SendMessage createMessage(long chatId, String text) {
